@@ -74,5 +74,5 @@ void registerEntity(const std::string &name, const std::string &ip, int port) {
 }
 
 int main() {
-    setUpBank();
+    //setUpBank();
 }
