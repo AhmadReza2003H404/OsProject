@@ -1,29 +1,61 @@
 #include <iostream>
 #include <cstring>
 #include <cstdlib>
+#include <regex>
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <vector>
 #include <string>
+#include "back_regex.h"
 
 #define PORT 9999
 #define BUFFER_SIZE 1024
 
-struct EntityInfo {
+struct Cryptocurrencies {
     std::string name;
-    std::string ip;
+};
+
+struct ClientCryptocurrency {
+    std::string name;
+    long balance;
+};
+
+struct Client {
+    std::string name;
+    int port;
+    long balance;
+    std::vector<ClientCryptocurrency *> cryptocurrencies;
+};
+
+struct Exchange {
+    std::string name;
     int port;
 };
 
-std::vector<EntityInfo> entities;
 
-void registerEntity(const std::string &name, const std::string &ip, int port) {
-    entities.push_back({name, ip, port});
-    std::cout << "Registered: " << name << " (IP: " << ip << ", Port: " << port << ")\n";
+std::vector<Client *> clients;
+std::vector<Exchange *> exchanges;
+pthread_mutex_t mutex;
+
+std::string trim(const std::string &str) {
+    // Find the first non-whitespace character
+    size_t start = str.find_first_not_of(" \t\n\r");
+    if (start == std::string::npos) {
+        return ""; // String is all whitespace
+    }
+
+    // Find the last non-whitespace character
+    size_t end = str.find_last_not_of(" \t\n\r");
+
+    // Return the trimmed string
+    return str.substr(start, end - start + 1);
 }
+
+void handleMessage(const std::string &message, int sockfd, struct sockaddr_in sockaddr_in);
 
 [[noreturn]] void setUpBank() {
     std::cout << "Entering bank setup...\n";
+    pthread_mutex_init(&mutex, NULL);
 
     int sockfd;
     char buffer[BUFFER_SIZE];
@@ -42,7 +74,7 @@ void registerEntity(const std::string &name, const std::string &ip, int port) {
     server_addr.sin_port = htons(PORT);
 
     // Bind the socket
-    if (bind(sockfd, (const struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+    if (bind(sockfd, (const struct sockaddr *) &server_addr, sizeof(server_addr)) < 0) {
         perror("Bind failed");
         close(sockfd);
         exit(EXIT_FAILURE);
@@ -52,7 +84,7 @@ void registerEntity(const std::string &name, const std::string &ip, int port) {
 
     while (true) {
         socklen_t len = sizeof(client_addr);
-        int n = recvfrom(sockfd, buffer, BUFFER_SIZE, 0, (struct sockaddr *)&client_addr, &len);
+        int n = recvfrom(sockfd, buffer, BUFFER_SIZE, 0, (struct sockaddr *) &client_addr, &len);
         if (n < 0) {
             perror("Receive failed");
             continue;
@@ -60,14 +92,9 @@ void registerEntity(const std::string &name, const std::string &ip, int port) {
 
         buffer[n] = '\0';
 
-        // Extract ip and port of client
-        char client_ip[INET_ADDRSTRLEN];
-        inet_ntop(AF_INET, &client_addr.sin_addr, client_ip, INET_ADDRSTRLEN);
-        int client_port = ntohs(client_addr.sin_port);
-
         std::string message(buffer);
 
-        // extract message -->
+        handleMessage(message, sockfd, client_addr);
     }
 
     close(sockfd);
@@ -75,4 +102,46 @@ void registerEntity(const std::string &name, const std::string &ip, int port) {
 
 int main() {
     setUpBank();
+}
+
+
+void registerClient(int sockfd, struct sockaddr_in sockaddr_in,  const std::smatch &match) {
+    std::string name = match[1];
+    int port = std::stoi(match[2]);
+    Client *client = new Client;
+    client->name = name;
+    client->port = port;
+    client->balance = 0;
+    pthread_mutex_lock(&mutex);
+    clients.push_back(client);
+    pthread_mutex_unlock(&mutex);
+    const std::string response = "REGISTER SUCCESSFUL";
+    sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in, sizeof(sockaddr_in));
+    std::cout << "New client registered: " << name << " " << port << std::endl;
+}
+
+void registerExchange(int sockfd, struct sockaddr_in sockaddr_in, const std::smatch &match) {
+    std::string name = match[1];
+    int port = std::stoi(match[2]);
+    Exchange *exchange = new Exchange;
+    exchange->name = name;
+    exchange->port = port;
+    pthread_mutex_lock(&mutex);
+    exchanges.push_back(exchange);
+    pthread_mutex_unlock(&mutex);
+    const std::string response = "REGISTER SUCCESSFUL";
+    sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in, sizeof(sockaddr_in));
+    std::cout << "New exchange registered: " << name << " " << port << std::endl;
+}
+
+void handleMessage(const std::string &message, int sockfd, struct sockaddr_in sockaddr_in) {
+    std::smatch match; // Object to hold the match results
+
+    if (std::regex_match(message, match, clientRegisterRegex)) {
+        registerClient(sockfd, sockaddr_in, match);
+    } else if (std::regex_match(message, match, exchangeRegisterRegex)) {
+        registerExchange(sockfd, sockaddr_in, match);
+    } else {
+        std::cout << "Name not found: " << message << std::endl;
+    }
 }
