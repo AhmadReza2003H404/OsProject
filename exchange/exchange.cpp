@@ -61,8 +61,9 @@ void registerWithBank(const std::string &name, const std::string &server_ip) {
     inet_pton(AF_INET, server_ip.c_str(), &bank_server_addr.sin_addr);
 
     // Send registration message
-    const std::string message = "REGISTER | " + name + " | " + std::to_string(assigned_port) + " | " + "EXCHANGE";
-    sendto(bankSocketFd, message.c_str(), message.size(), 0, (const struct sockaddr *) &bank_server_addr, sizeof(bank_server_addr));
+    const std::string message = "REGISTER | " + name + " | " + std::to_string(assigned_port) + " | " + "CLIENT";
+    const std::string messageToServer = message + " | TOKEN | " + simpleHash(message);
+    sendto(bankSocketFd, messageToServer.c_str(), messageToServer.size(), 0, (const struct sockaddr *) &bank_server_addr, sizeof(bank_server_addr));
 
     // Receive acknowledgment
     socklen_t len = sizeof(bank_server_addr);
