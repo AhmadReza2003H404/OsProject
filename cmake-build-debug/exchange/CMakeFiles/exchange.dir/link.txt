@@ -1,0 +1,1 @@
+/usr/bin/c++ -g CMakeFiles/exchange.dir/exchange.cpp.o -o exchange
