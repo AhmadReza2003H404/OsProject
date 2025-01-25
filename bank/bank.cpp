@@ -11,6 +11,7 @@
 
 #define PORT 9999
 #define BUFFER_SIZE 1024
+#define MAX_BALANCE 5000
 
 struct Cryptocurrencies {
     std::string name;
@@ -106,7 +107,7 @@ int main() {
 }
 
 
-void registerClient(int sockfd, struct sockaddr_in sockaddr_in,  const std::smatch &match) {
+void registerClient(int sockfd, struct sockaddr_in sockaddr_in, const std::smatch &match) {
     std::string name = match[2];
     int port = std::stoi(match[3]);
     Client *client = new Client;
@@ -128,32 +129,105 @@ void registerExchange(int sockfd, struct sockaddr_in sockaddr_in, const std::sma
     exchange->name = name;
     exchange->port = port;
     pthread_mutex_lock(&mutex);
-    exchanges.push_back(exchange);
-    pthread_mutex_unlock(&mutex);
     const std::string response = "REGISTER SUCCESSFUL";
     sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in, sizeof(sockaddr_in));
     std::cout << "New exchange registered: " << name << " " << port << std::endl;
 }
 
-bool isAuthorized(const std::smatch & match, int i) {
+bool isAuthorized(const std::smatch &match, int i) {
     std::string hash = match[i];
     std::string message = match[1];
     return simpleHash(message) == hash;
+}
+
+void getAccountBalance(int sockfd, struct sockaddr_in sockaddr_in, const std::smatch &match) {
+    std::string port = match[2];
+    Client *c = nullptr;
+    for (Client *client: clients) {
+        if (client->port == std::stoi(port)) {
+            c = client;
+            break;
+        }
+    }
+    if (c) {
+        const std::string response = "ACCOUNT BALANCE | " + std::to_string(c->balance);
+        sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in, sizeof(sockaddr_in));
+        std::cout << "Get Account balance of : " << port << " is " << c->balance << std::endl;
+    } else {
+        std::cout << "Account not found " << port << std::endl;
+        const std::string response = "ACCOUNT NOT FOUND";
+        sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in, sizeof(sockaddr_in));
+    }
+}
+
+void addAccountBalance(int sockfd, struct sockaddr_in sockaddr_in, const std::smatch & match) {
+    std::string port = match[2];
+    std::string increaseAmount = match[3];
+    Client *c = nullptr;
+    for (Client *client: clients) {
+        if (client->port == std::stoi(port)) {
+            c = client;
+            break;
+        }
+    }
+    if (c) {
+        std::string response;
+        if(c->balance + std::stoi(increaseAmount) < MAX_BALANCE) {
+            c->balance += std::stoi(increaseAmount);
+            std::cout << "Increase balance of " << port << " is " << increaseAmount << std::endl;
+            response = "AMOUNT INCREASED";
+        } else {
+            std::cout << "Can't Increase balance of " << port << std::endl;
+            response = "YOU REACH TO TOP OF MAX BALANCE";
+        }
+        sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in, sizeof(sockaddr_in));
+    } else {
+        std::cout << "Account not found " << port << std::endl;
+        const std::string response = "ACCOUNT NOT FOUND";
+        sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in, sizeof(sockaddr_in));
+    }
 }
 
 void handleMessage(const std::string &message, int sockfd, struct sockaddr_in sockaddr_in) {
     std::smatch match; // Object to hold the match results
 
     if (std::regex_match(message, match, clientRegisterRegex)) {
-        if(isAuthorized(match, 4)) {
+        if (isAuthorized(match, 4)) {
             registerClient(sockfd, sockaddr_in, match);
         } else {
             const std::string response = "NOT AUTHORIZED";
-            sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in, sizeof(sockaddr_in));
+            sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
+                   sizeof(sockaddr_in));
         }
     } else if (std::regex_match(message, match, exchangeRegisterRegex)) {
-        registerExchange(sockfd, sockaddr_in, match);
-    } else {
-        std::cout << "Name not found: " << message << std::endl;
+        if (isAuthorized(match, 4)) {
+            registerExchange(sockfd, sockaddr_in, match);
+        } else {
+            const std::string response = "NOT AUTHORIZED";
+            sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
+                   sizeof(sockaddr_in));
+        }
+    } else if (std::regex_match(message, match, getAccountBalanceRegex)) {
+        if (isAuthorized(match, 3)) {
+            getAccountBalance(sockfd, sockaddr_in, match);
+        } else {
+            const std::string response = "NOT AUTHORIZED";
+            sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
+                   sizeof(sockaddr_in));
+        }
+    } else if(std::regex_match(message, match, increaseAccountBalance)) {
+        if (isAuthorized(match, 4)) {
+            addAccountBalance(sockfd, sockaddr_in, match);
+        } else {
+            const std::string response = "NOT AUTHORIZED";
+            sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
+                   sizeof(sockaddr_in));
+        }
+    }
+    else {
+        std::cout << "Request not found: " << message << std::endl;
+        const std::string response = "Request not found";
+        sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
+               sizeof(sockaddr_in));
     }
 }

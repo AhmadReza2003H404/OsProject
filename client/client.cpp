@@ -54,11 +54,43 @@ void sellCryptocurrency(int sockfd, struct sockaddr_in sockaddr_in) {
 }
 
 void viewWalletBalance(int sockfd, struct sockaddr_in sockaddr_in, int assigned_port) {
-
+    const std::string message = "GET_ACCOUNT_BALANCE | " + std::to_string(assigned_port);
+    const std::string messageToServer = message + " | TOKEN | " + simpleHash(message);
+    sendto(sockfd, messageToServer.c_str(), messageToServer.size(), 0, (const struct sockaddr *) &sockaddr_in, sizeof(sockaddr_in));
+    // Receive acknowledgment
+    char buffer[BUFFER_SIZE];
+    socklen_t len = sizeof(sockaddr_in);
+    int n = recvfrom(sockfd, buffer, BUFFER_SIZE, 0, (struct sockaddr *)&sockaddr_in, &len);
+    if (n < 0) {
+        perror("Receive failed");
+    } else {
+        buffer[n] = '\0';
+        std::cout << "Bank response: " << buffer << "\n";
+    }
 }
 
 void increaseWalletBalance(int sockfd, struct sockaddr_in sockaddr_in, int assigned_port) {
-
+    std::cout << "Enter increase amount" << std::endl;
+    std::string amountStr;
+    std::getline(std::cin, amountStr);
+    try {
+        std::stoi(amountStr);
+        const std::string message = "INCREASE_ACCOUNT_BALANCE | " + std::to_string(assigned_port) + " | " + amountStr;
+        const std::string messageToServer = message + " | TOKEN | " + simpleHash(message);
+        sendto(sockfd, messageToServer.c_str(), messageToServer.size(), 0, (const struct sockaddr *) &sockaddr_in, sizeof(sockaddr_in));
+        // Receive acknowledgment
+        char buffer[BUFFER_SIZE];
+        socklen_t len = sizeof(sockaddr_in);
+        int n = recvfrom(sockfd, buffer, BUFFER_SIZE, 0, (struct sockaddr *)&sockaddr_in, &len);
+        if (n < 0) {
+            perror("Receive failed");
+        } else {
+            buffer[n] = '\0';
+            std::cout << "Bank response: " << buffer << "\n";
+        }
+    } catch (...) {
+        std::cout << "Invalid input" << std::endl;
+    }
 }
 
 void viewTransactionHistory(int sockfd, struct sockaddr_in sockaddr_in) {
@@ -74,6 +106,7 @@ void renderMenu() {
     std::cout << "5: Requesting a balance increase from the bank" << std::endl;
     std::cout << "6: View transaction history" << std::endl;
     std::cout << "7: Exit" << std::endl;
+    std::cout << "Enter your choice : ";
 }
 
 void handleClient(int sockfd, int bankSocketFd, struct sockaddr_in addr, struct sockaddr_in bank_server_addr, int assigned_port){
