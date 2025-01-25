@@ -155,5 +155,6 @@ void handleMessage(const std::string &message, int sockfd, struct sockaddr_in so
         registerExchange(sockfd, sockaddr_in, match);
     } else {
         std::cout << "Name not found: " << message << std::endl;
+        cout << "test";
     }
 }
