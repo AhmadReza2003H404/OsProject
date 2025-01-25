@@ -18,13 +18,13 @@ void buyCryptocurrency(int sockfd, struct sockaddr_in sockaddr_in);
 
 void sellCryptocurrency(int sockfd, struct sockaddr_in sockaddr_in);
 
-void viewWalletBalance(int sockfd, struct sockaddr_in sockaddr_in);
+void viewWalletBalance(int sockfd, struct sockaddr_in sockaddr_in, int assigned_port);
 
-void increaseWalletBalance(int sockfd, struct sockaddr_in sockaddr_in);
+void increaseWalletBalance(int sockfd, struct sockaddr_in sockaddr_in, int assigned_port);
 
 void viewTransactionHistory(int sockfd, struct sockaddr_in sockaddr_in);
 
-void handleClient(int sockfd, int bankSocketFd, struct sockaddr_in addr, struct sockaddr_in bank_server_addr);
+void handleClient(int sockfd, int bankSocketFd, struct sockaddr_in addr, struct sockaddr_in bank_server_addr, int assigned_port);
 
 void registerWithBank(const std::string &name, const std::string &server_ip);
 
@@ -53,11 +53,11 @@ void sellCryptocurrency(int sockfd, struct sockaddr_in sockaddr_in) {
 
 }
 
-void viewWalletBalance(int sockfd, struct sockaddr_in sockaddr_in) {
+void viewWalletBalance(int sockfd, struct sockaddr_in sockaddr_in, int assigned_port) {
 
 }
 
-void increaseWalletBalance(int sockfd, struct sockaddr_in sockaddr_in) {
+void increaseWalletBalance(int sockfd, struct sockaddr_in sockaddr_in, int assigned_port) {
 
 }
 
@@ -76,7 +76,7 @@ void renderMenu() {
     std::cout << "7: Exit" << std::endl;
 }
 
-void handleClient(int sockfd, int bankSocketFd, struct sockaddr_in addr, struct sockaddr_in bank_server_addr){
+void handleClient(int sockfd, int bankSocketFd, struct sockaddr_in addr, struct sockaddr_in bank_server_addr, int assigned_port){
     bool isRunning = true;
     std::string choice;
     while (isRunning) {
@@ -91,9 +91,9 @@ void handleClient(int sockfd, int bankSocketFd, struct sockaddr_in addr, struct 
         } else if (choice == "3") {
             sellCryptocurrency(bankSocketFd, bank_server_addr);
         } else if (choice == "4") {
-            viewWalletBalance(bankSocketFd, bank_server_addr);
+            viewWalletBalance(bankSocketFd, bank_server_addr, assigned_port);
         } else if (choice == "5") {
-            increaseWalletBalance(bankSocketFd, bank_server_addr);
+            increaseWalletBalance(bankSocketFd, bank_server_addr, assigned_port);
         } else if (choice == "6") {
             viewTransactionHistory(bankSocketFd, bank_server_addr);
         } else if (choice == "7") {
@@ -168,7 +168,7 @@ void registerWithBank(const std::string &name, const std::string &server_ip) {
         buffer[n] = '\0';
         std::cout << "Bank response: " << buffer << "\n";
     }
-    handleClient(sockfd, bankSocketFd, addr, bank_server_addr);
+    handleClient(sockfd, bankSocketFd, addr, bank_server_addr, assigned_port);
 
     close(sockfd);
 }
