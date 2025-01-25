@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include "HasFunction.h"
 
 #define SERVER_PORT 9999
 #define BUFFER_SIZE 1024
@@ -155,7 +156,8 @@ void registerWithBank(const std::string &name, const std::string &server_ip) {
 
     // Send registration message
     const std::string message = "REGISTER | " + name + " | " + std::to_string(assigned_port) + " | " + "CLIENT";
-    sendto(bankSocketFd, message.c_str(), message.size(), 0, (const struct sockaddr *) &bank_server_addr, sizeof(bank_server_addr));
+    const std::string messageToServer = message + " | TOKEN | " + simpleHash(message);
+    sendto(bankSocketFd, messageToServer.c_str(), messageToServer.size(), 0, (const struct sockaddr *) &bank_server_addr, sizeof(bank_server_addr));
 
     // Receive acknowledgment
     socklen_t len = sizeof(bank_server_addr);

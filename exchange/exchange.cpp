@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include "HasFunction.h"
 
 #define SERVER_PORT 9999
 #define BUFFER_SIZE 1024

@@ -7,6 +7,7 @@
 #include <vector>
 #include <string>
 #include "back_regex.h"
+#include "HasFunction.h"
 
 #define PORT 9999
 #define BUFFER_SIZE 1024
@@ -106,8 +107,8 @@ int main() {
 
 
 void registerClient(int sockfd, struct sockaddr_in sockaddr_in,  const std::smatch &match) {
-    std::string name = match[1];
-    int port = std::stoi(match[2]);
+    std::string name = match[2];
+    int port = std::stoi(match[3]);
     Client *client = new Client;
     client->name = name;
     client->port = port;
@@ -121,8 +122,8 @@ void registerClient(int sockfd, struct sockaddr_in sockaddr_in,  const std::smat
 }
 
 void registerExchange(int sockfd, struct sockaddr_in sockaddr_in, const std::smatch &match) {
-    std::string name = match[1];
-    int port = std::stoi(match[2]);
+    std::string name = match[2];
+    int port = std::stoi(match[3]);
     Exchange *exchange = new Exchange;
     exchange->name = name;
     exchange->port = port;
@@ -134,11 +135,22 @@ void registerExchange(int sockfd, struct sockaddr_in sockaddr_in, const std::sma
     std::cout << "New exchange registered: " << name << " " << port << std::endl;
 }
 
+bool isAuthorized(const std::smatch & match, int i) {
+    std::string hash = match[i];
+    std::string message = match[1];
+    return simpleHash(message) == hash;
+}
+
 void handleMessage(const std::string &message, int sockfd, struct sockaddr_in sockaddr_in) {
     std::smatch match; // Object to hold the match results
 
     if (std::regex_match(message, match, clientRegisterRegex)) {
-        registerClient(sockfd, sockaddr_in, match);
+        if(isAuthorized(match, 4)) {
+            registerClient(sockfd, sockaddr_in, match);
+        } else {
+            const std::string response = "NOT AUTHORIZED";
+            sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in, sizeof(sockaddr_in));
+        }
     } else if (std::regex_match(message, match, exchangeRegisterRegex)) {
         registerExchange(sockfd, sockaddr_in, match);
     } else {
