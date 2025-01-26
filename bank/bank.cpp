@@ -303,11 +303,7 @@ void buyCryptocurrency(int sockfd, struct sockaddr_in sockaddr_in, const smatch 
         std::string response;
         for(Cryptocurrencies * cryptocurrencies : cryptocurrencieses) {
             if(cryptocurrencies->name == cryptoName) {
-                if(cryptocurrencies->isAvailable) {
-                    response = "AVAILABLE";
-                } else {
-                    response = "NOT AVAILABLE | This crypto in not released";
-                }
+                response = "AVAILABLE";
                 break;
             }
         }
