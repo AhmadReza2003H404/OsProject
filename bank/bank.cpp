@@ -307,7 +307,7 @@ void buyCryptocurrency(int sockfd, struct sockaddr_in sockaddr_in, const smatch 
                 break;
             }
         }
-        pthread_mutex_unlock(&mutex);
+        pthread_mutex_lock(&mutex);
         if(c->balance >= price*count && response == "AVAILABLE") {
             ClientCryptocurrency * c2 = nullptr;
             for (ClientCryptocurrency *client_cryptocurrency: c->cryptocurrencies) {
@@ -340,7 +340,66 @@ void buyCryptocurrency(int sockfd, struct sockaddr_in sockaddr_in, const smatch 
         sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
                sizeof(sockaddr_in));
     }
+}
 
+void sellCryptocurrency(int sockfd, struct sockaddr_in sockaddr_in, const smatch & match) {
+     std::string cryptoName = match[2];
+    int count = stoi(match[3]);
+    int port = stoi(match[4]);
+    int price = stoi(match[5]);
+    Client *c = nullptr;
+    for (Client *client: clients) {
+        if (client->port == port) {
+            c = client;
+            break;
+        }
+    }
+    if (c) {
+        std::string response;
+        for(Cryptocurrencies * cryptocurrencies : cryptocurrencieses) {
+            if(cryptocurrencies->name == cryptoName) {
+                if(cryptocurrencies->isAvailable) {
+                    response = "AVAILABLE";
+                } else {
+                    response = "NOT AVAILABLE";
+                }
+                break;
+            }
+        }
+        pthread_mutex_lock(&mutex);
+        if(response == "AVAILABLE") {
+            ClientCryptocurrency * c2 = nullptr;
+            for (ClientCryptocurrency *client_cryptocurrency: c->cryptocurrencies) {
+                if(client_cryptocurrency->name == cryptoName) {
+                    c2 = client_cryptocurrency;
+                    break;
+                }
+            }
+            if(c2) {
+                if(c2->balance >= count) {
+                    c2->balance -= count;
+                    c->balance += count*price;
+                    std::string message = "SELL CRYPTO | Sell " + to_string(count) + " of " + cryptoName + " with price " +  to_string(price);
+                    c->historyList.push_back(message);
+                    response = "SUCCESSES";
+                } else {
+                    response = "NOT ENOUGH | This user not have enough count of this crypto";
+                }
+            } else {
+                response = "NOT HAVE | This user not have this crypto";
+            }
+        } else {
+            response = "NOT AVAILABLE | This crypto is not available for sell";
+        }
+        pthread_mutex_unlock(&mutex);
+        sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
+       sizeof(sockaddr_in));
+    } else {
+        std::cout << "Account not found " << port << std::endl;
+        const std::string response = "ACCOUNT NOT FOUND";
+        sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
+               sizeof(sockaddr_in));
+    }
 }
 
 void handleMessage(const std::string &message, int sockfd, struct sockaddr_in sockaddr_in) {
@@ -413,6 +472,13 @@ void handleMessage(const std::string &message, int sockfd, struct sockaddr_in so
     } else if (std::regex_match(message, match, buyCryptocurrencyRegex)) {
         if(isAuthorized(match, 6)) {
             buyCryptocurrency(sockfd, sockaddr_in, match);
+        } else {
+            const std::string response = "NOT AUTHORIZED";
+
+        }
+    } else if (std::regex_match(message, match, sellCryptocurrencyRegex)) {
+        if(isAuthorized(match, 6)) {
+            sellCryptocurrency(sockfd, sockaddr_in, match);
         } else {
             const std::string response = "NOT AUTHORIZED";
 

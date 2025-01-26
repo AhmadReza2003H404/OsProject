@@ -120,10 +120,12 @@ std::string submitBuyRequestInBank(const string & name, Cryptocurrency * cryptoc
         cryptocurrency->count -= count;
 
         mtx.unlock();
-        int priceAdd = ((count / prevCount) * 100) * 3) / 5
+        int priceAdd = (((count / prevCount) * 100) * 3) / 5;
         cryptocurrency->price += (priceAdd * cryptocurrency->price) / 100;
         exchangeBalance->store( exchangeBalance->load() + (count * price));
+        std::cout << "New Price of: " << name << " is: " << cryptocurrency->price << std::endl;
     }
+    std::cout << "New Exchange balance : " << exchangeBalance->load() << endl;
     return response;
 }
 
@@ -157,8 +159,47 @@ void buyCryptocurrency(int sockfd, struct sockaddr_in sockaddr_in, const smatch 
            sizeof(sockaddr_in));
 }
 
-void sellCryptocurrency(int sockfd, struct sockaddr_in sockaddr_in, const smatch & match, atomic<long> * exchangeBalance) {
+string submitSellRequestInBank(const string & name, Cryptocurrency * cryptocurrency, int port, long count, std::atomic<long> * exchangeBalance) {
+    int price = cryptocurrency->price;
+    const std::string message = "SELL | " + name + " | COUNT | " + to_string(count)  + " | PORT | " + to_string(port) + " | PRICE | " + to_string(price);
+    const std::string messageToServer = message + " | TOKEN | " + simpleHash(message);
+    std:: string response = sendMessageToBank(messageToServer);
+    if(response == "SUCCESSES") {
+        mtx.lock();
+        cryptocurrency->count += count;
+        mtx.unlock();
+        exchangeBalance->store( exchangeBalance->load() - (count * price));
 
+    }
+    std::cout << "New Exchange balance : " << exchangeBalance->load() << endl;
+
+    return response;
+}
+
+void sellCryptocurrency(int sockfd, struct sockaddr_in sockaddr_in, const smatch & match, atomic<long> * exchangeBalance) {
+    std::string name = match[2];
+    long count = std::stoi(match[3]);
+    int port = std::stoi(match[4]);
+    Cryptocurrency  * cryptocurrency = nullptr;
+    for (auto *currency: currencyList) {
+        if(currency->name == name) {
+            cryptocurrency = currency;
+            break;
+        }
+    }
+    std::string response;
+    if (cryptocurrency) {
+        if(cryptocurrency->price * count <= exchangeBalance->load()) {
+            response = submitSellRequestInBank(name, cryptocurrency , port, count, exchangeBalance);
+        } else {
+            response = "NOT ENOUGH | This exchange does not have enough money to buy this exchange";
+        }
+    } else {
+        response = "NOT FOUND | Cryptocurrency " + name + " is not found in this exchange";
+    }
+    std::cout << response << std::endl;
+    sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
+           sizeof(sockaddr_in));
 }
 
 void handleMessage(const std::string &message, int sockfd, struct sockaddr_in sockaddr_in, atomic<long> * exchangeBalance) {
