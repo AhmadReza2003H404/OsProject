@@ -27,7 +27,7 @@ struct Client {
     int port;
     long balance;
     std::vector<ClientCryptocurrency *> cryptocurrencies;
-    vector<string> history;
+    vector<string> historyList;
 };
 
 struct Exchange {
@@ -179,6 +179,7 @@ void addAccountBalance(int sockfd, struct sockaddr_in sockaddr_in, const std::sm
             c->balance += std::stoi(increaseAmount);
             std::cout << "Increase balance of " << port << " is " << increaseAmount << std::endl;
             response = "AMOUNT INCREASED";
+            c->historyList.push_back("AddAcountBalance Transaction: " + increaseAmount);
         } else {
             std::cout << "Can't Increase balance of " << port << std::endl;
             response = "YOU REACH TO TOP OF MAX BALANCE";
@@ -204,7 +205,28 @@ void getExchangeList(int sockfd, struct sockaddr_in sockaddr_in){
     std::cout << "Send Exchange List" << endl;
     sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in, sizeof(sockaddr_in));
 }
+void getAccountHistory(int sockfd, struct sockaddr_in sockaddr_in, const std::smatch & match){
+    std::string port = match[2];
+    Client *c = nullptr;
+    for (Client *client: clients) {
+        if (client->port == std::stoi(port)) {
+            c = client;
+            break;
+        }
+    }
+    if (c){
+            std::string response = "HistoryList \n size: " + to_string(c->historyList.size());
+            for(auto history: c->historyList){
+                std::string message = "\nName: " + history; 
+                response = response + message;
+            }
 
+            socklen_t len = sizeof(sockaddr_in);
+                        sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in, sizeof(sockaddr_in));
+
+            std::cout << "Send History List" << endl;
+    }
+}
 
 void handleMessage(const std::string &message, int sockfd, struct sockaddr_in sockaddr_in) {
     std::smatch match; // Object to hold the match results
@@ -246,6 +268,16 @@ void handleMessage(const std::string &message, int sockfd, struct sockaddr_in so
     else if(std::regex_match(message , match , getExchangeListRegex)){
          if (isAuthorized(match, 2)) {
                 getExchangeList(sockfd , sockaddr_in);
+         }
+         else{
+            const std::string response = "NOT AUTHORIZED";
+            sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
+                   sizeof(sockaddr_in));
+         }
+    }
+    else if(std::regex_match(message , match , getAccountHistoryRegex)){
+         if (isAuthorized(match, 3)) {
+                getAccountHistory(sockfd , sockaddr_in , match);
          }
          else{
             const std::string response = "NOT AUTHORIZED";
