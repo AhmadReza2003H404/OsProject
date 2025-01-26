@@ -153,7 +153,7 @@ void buy_sellCryptocurrency(int sockfd, struct sockaddr_in sockaddr_in, const sm
            sizeof(sockaddr_in));
 }
 
-void sellCryptocurrency(int sockfd, struct sockaddr_in sockaddr_in, const smatch & match) {
+void sellCryptocurrency(int sockfd, struct sockaddr_in sockaddr_in, const smatch & match, atomic<long> * exchangeBalance) {
 
 }
 
@@ -178,7 +178,7 @@ void handleMessage(const std::string &message, int sockfd, struct sockaddr_in so
         }
     } else if(std::regex_match(message, match, sellCryptocurrencyRegex)) {
         if(isAuthorized(match, 5)) {
-            sellCryptocurrency(sockfd, sockaddr_in, match);
+            sellCryptocurrency(sockfd, sockaddr_in, match, exchangeBalance);
         } else {
             const std::string response = "NOT AUTHORIZED";
             sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
