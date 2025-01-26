@@ -137,7 +137,7 @@ void buyCryptocurrency(int sockfd, struct sockaddr_in sockaddr_in, const smatch 
     std::string response;
     if (cryptocurrency) {
         if(cryptocurrency->count >= count) {
-            if(cryptocurrency->isAvailable) {
+            if(cryptocurrency->isAvailable || cryptocurrency->isOwner) {
                 response = submitBuyRequestInBank(name, cryptocurrency , port, count, exchangeBalance);
             } else {
                 response = "NOT AVAILABLE | This Cryptocurrency: " + name + " is not available";
