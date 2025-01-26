@@ -165,9 +165,12 @@ string submitSellRequestInBank(const string & name, Cryptocurrency * cryptocurre
     const std::string messageToServer = message + " | TOKEN | " + simpleHash(message);
     std:: string response = sendMessageToBank(messageToServer);
     if(response == "SUCCESSES") {
+        int prevCount = count;
         mtx.lock();
         cryptocurrency->count += count;
         mtx.unlock();
+        int priceSub = (((count / prevCount) * 100) * 2) / 3;
+        cryptocurrency->price -= (priceSub * cryptocurrency->price) / 100;
         exchangeBalance->store( exchangeBalance->load() - (count * price));
 
     }
