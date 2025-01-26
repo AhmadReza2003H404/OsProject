@@ -9,7 +9,8 @@ const std::regex getAccountBalanceRegex(R"(^(GET_ACCOUNT_BALANCE \| (\d{1,5})) \
 const std::regex increaseAccountBalanceRegex(R"(^(INCREASE_ACCOUNT_BALANCE \| (\d{1,5}) \| (\d+)) \| TOKEN \| (.+)$)");
 const std::regex getExchangeListRegex(R"(^(GET_EXCHANGE_LIST) \| TOKEN \| (.+)$)");
 const std::regex getAccountHistoryRegex(R"(^(GET_ACCOUNT_HISTORY \| (\d{1,5})) \| TOKEN \| (.+)$)");
-const std::regex addCryptocurrencyRegex(R"(^(ADD_CRYPTOCURRENCY \| ([a-zA-Z0-9_]+)) \| TOKEN \| (.+)$)");
-
+const std::regex addCryptocurrencyRegex(R"(^(CREATE_CRYPTO_CURRENCY \| ([a-zA-Z0-9_]+) \| (\d+) \| (\d+)) \| TOKEN \| (.+)$)");
+const std::regex releaseCryptocurrencyRegex(R"(^(RELEASE_CRYPTO_CURRENCY \| ([a-zA-Z0-9_]+)) \| TOKEN \| (.+)$)");
+const std::regex buyCryptocurrencyRegex(R"(^(BUY \| ([a-zA-Z0-9_]+) \| COUNT \| (\d+) \| PORT \| (\d{1,5}) \| PRICE \| (\d+)) \| TOKEN \| (.+)$)");
 
 #endif //BANK_REGEX_H

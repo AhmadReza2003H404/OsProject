@@ -16,6 +16,9 @@ using namespace std;
 
 struct Cryptocurrencies {
     std::string name;
+    long firstPrice;
+    long countExist;
+    bool isAvailable;
 };
 
 struct ClientCryptocurrency {
@@ -39,6 +42,7 @@ struct Exchange {
 
 std::vector<Client *> clients;
 std::vector<Exchange *> exchanges;
+vector<Cryptocurrencies *> cryptocurrencieses;
 pthread_mutex_t mutex;
 
 std::string trim(const std::string &str) {
@@ -104,6 +108,7 @@ void handleMessage(const std::string &message, int sockfd, struct sockaddr_in so
     close(sockfd);
 }
 
+
 int main() {
     setUpBank();
 }
@@ -166,6 +171,38 @@ void getAccountBalance(int sockfd, struct sockaddr_in sockaddr_in, const std::sm
     }
 }
 
+void addCryptocurrency(int sockfd, struct sockaddr_in sockaddr_in, const std::smatch &match) {
+    long count = stoi(match[3]);
+    string curencyName = match[2];
+    long firstPrice = stoi(match[4]);
+
+    bool validate = true;
+    for (auto curency: cryptocurrencieses) {
+        if (curency->name == curencyName) {
+            validate = false;
+            break;
+        }
+    }
+
+    if (validate) {
+        const std::string response = "CRYPTO CREATE | " + curencyName;
+        Cryptocurrencies *cr = new Cryptocurrencies();
+        cr->name = curencyName;
+        cr->firstPrice = firstPrice;
+        cr->countExist = count;
+        cr->isAvailable = false;
+        cryptocurrencieses.push_back(cr);
+        sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
+               sizeof(sockaddr_in));
+        std::cout << "Crypto Create : " << curencyName << std::endl;
+    } else {
+        std::cout << "This Crypto Exist Already. " << std::endl;
+        const std::string response = "Crypto Exist Already. Try with another name";
+        sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
+               sizeof(sockaddr_in));
+    }
+}
+
 void addAccountBalance(int sockfd, struct sockaddr_in sockaddr_in, const std::smatch &match) {
     std::string port = match[2];
     std::string increaseAmount = match[3];
@@ -204,13 +241,13 @@ void getExchangeList(int sockfd, struct sockaddr_in sockaddr_in) {
         response = response + message;
     }
 
-   
 
     socklen_t len = sizeof(sockaddr_in);
     std::cout << "Send Exchange List" << endl;
     sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in, sizeof(sockaddr_in));
 }
-void getAccountHistory(int sockfd, struct sockaddr_in sockaddr_in, const std::smatch & match){
+
+void getAccountHistory(int sockfd, struct sockaddr_in sockaddr_in, const std::smatch &match) {
     std::string port = match[2];
     Client *c = nullptr;
     for (Client *client: clients) {
@@ -219,30 +256,97 @@ void getAccountHistory(int sockfd, struct sockaddr_in sockaddr_in, const std::sm
             break;
         }
     }
-    if (c){
-            std::string response = "HistoryList \n size: " + to_string(c->historyList.size());
-            for(auto history: c->historyList){
-                std::string message = "\nName: " + history;
-                response = response + message;
-            }
+    if (c) {
+        std::string response = "HistoryList \n size: " + to_string(c->historyList.size());
+        for (auto history: c->historyList) {
+            std::string message = "\nName: " + history;
+            response = response + message;
+        }
 
-            socklen_t len = sizeof(sockaddr_in);
-                        sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in, sizeof(sockaddr_in));
+        socklen_t len = sizeof(sockaddr_in);
+        sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
+               sizeof(sockaddr_in));
 
-            std::cout << "Send History List" << endl;
+        std::cout << "Send History List" << endl;
     }
 }
 
-void addCryptocurrency(int sockfd, struct sockaddr_in sockaddr_in, const smatch &match) {
-    std::string name = match[2];
-    for (Exchange *ex: exchanges) {
 
+void releaseCryptocurrency(const smatch &match) {
+    for (Cryptocurrencies *c: cryptocurrencieses) {
+        if (match[2] == c->name) {
+            pthread_mutex_unlock(&mutex);
+            c->isAvailable = true;
+            pthread_mutex_unlock(&mutex);
+            cout << "Cryptocurrency " << c->name << " is released" << endl;
+            break;;
+        }
     }
+}
+
+void buy_sellCryptocurrency(int sockfd, struct sockaddr_in sockaddr_in, const smatch & match) {
+    std::string cryptoName = match[2];
+    int count = stoi(match[3]);
+    int port = stoi(match[4]);
+    int price = stoi(match[5]);
+    Client *c = nullptr;
+    for (Client *client: clients) {
+        if (client->port == port) {
+            c = client;
+            break;
+        }
+    }
+    if (c) {
+        std::string response;
+        for(Cryptocurrencies * cryptocurrencies : cryptocurrencieses) {
+            if(cryptocurrencies->name == cryptoName) {
+                if(cryptocurrencies->isAvailable) {
+                    response = "AVAILABLE";
+                } else {
+                    response = "NOT AVAILABLE | This crypto in not released";
+                }
+                break;
+            }
+        }
+        pthread_mutex_unlock(&mutex);
+        if(c->balance >= price*count && response == "AVAILABLE") {
+            ClientCryptocurrency * c2 = nullptr;
+            for (ClientCryptocurrency *client_cryptocurrency: c->cryptocurrencies) {
+                if(client_cryptocurrency->name == cryptoName) {
+                    c2 = client_cryptocurrency;
+                    break;
+                }
+            }
+            if(c2) {
+                c2->balance += count;
+            } else {
+                c2 = new ClientCryptocurrency;
+                c2->name = cryptoName;
+                c2->balance = count;
+                c->cryptocurrencies.push_back(c2);
+            }
+            c->balance -= count*price;
+            std::string message = "BUY CRYPTO | Buy " + to_string(count) + " of " + cryptoName + " with price " +  to_string(price);
+            c->historyList.push_back(message);
+            response = "SUCCESSES";
+        } else {
+            response = "LOW BALANCE | this account does not have enough balance";
+        }
+        pthread_mutex_unlock(&mutex);
+        sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
+       sizeof(sockaddr_in));
+    } else {
+        std::cout << "Account not found " << port << std::endl;
+        const std::string response = "ACCOUNT NOT FOUND";
+        sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
+               sizeof(sockaddr_in));
+    }
+
 }
 
 void handleMessage(const std::string &message, int sockfd, struct sockaddr_in sockaddr_in) {
     std::smatch match; // Object to hold the match results
-
+    std::cout << "Receive: " << message << std::endl;
     if (std::regex_match(message, match, clientRegisterRegex)) {
         if (isAuthorized(match, 4)) {
             registerClient(sockfd, sockaddr_in, match);
@@ -252,7 +356,6 @@ void handleMessage(const std::string &message, int sockfd, struct sockaddr_in so
                    sizeof(sockaddr_in));
         }
     } else if (std::regex_match(message, match, exchangeRegisterRegex)) {
-
         if (isAuthorized(match, 4)) {
             registerExchange(sockfd, sockaddr_in, match);
         } else {
@@ -268,7 +371,7 @@ void handleMessage(const std::string &message, int sockfd, struct sockaddr_in so
             sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
                    sizeof(sockaddr_in));
         }
-    } else if(std::regex_match(message, match, increaseAccountBalanceRegex)) {
+    } else if (std::regex_match(message, match, increaseAccountBalanceRegex)) {
         if (isAuthorized(match, 4)) {
             addAccountBalance(sockfd, sockaddr_in, match);
         } else {
@@ -276,33 +379,44 @@ void handleMessage(const std::string &message, int sockfd, struct sockaddr_in so
             sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
                    sizeof(sockaddr_in));
         }
-    }
-    else if(std::regex_match(message , match , getExchangeListRegex)){
-         if (isAuthorized(match, 2)) {
-                getExchangeList(sockfd , sockaddr_in);
-         }
-         else{
+    } else if (std::regex_match(message, match, getExchangeListRegex)) {
+        if (isAuthorized(match, 2)) {
+            getExchangeList(sockfd, sockaddr_in);
+        } else {
             const std::string response = "NOT AUTHORIZED";
             sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
                    sizeof(sockaddr_in));
-         }
-    }
-    else if(std::regex_match(message , match , getAccountHistoryRegex)){
-         if (isAuthorized(match, 3)) {
-                getAccountHistory(sockfd , sockaddr_in , match);
-         }
-         else{
+        }
+    } else if (std::regex_match(message, match, getAccountHistoryRegex)) {
+        if (isAuthorized(match, 3)) {
+            getAccountHistory(sockfd, sockaddr_in, match);
+        } else {
             const std::string response = "NOT AUTHORIZED";
             sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
                    sizeof(sockaddr_in));
         }
     } else if (std::regex_match(message, match, addCryptocurrencyRegex)) {
-        if (isAuthorized(match, 3)) {
+        if (isAuthorized(match, 5)) {
             addCryptocurrency(sockfd, sockaddr_in, match);
         } else {
             const std::string response = "NOT AUTHORIZED";
             sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
                    sizeof(sockaddr_in));
+        }
+    } else if (std::regex_match(message, match, releaseCryptocurrencyRegex)) {
+        if (isAuthorized(match, 3)) {
+            releaseCryptocurrency(match);
+        } else {
+            const std::string response = "NOT AUTHORIZED";
+            sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
+                   sizeof(sockaddr_in));
+        }
+    } else if (std::regex_match(message, match, buyCryptocurrencyRegex)) {
+        if(isAuthorized(match, 6)) {
+            buy_sellCryptocurrency(sockfd, sockaddr_in, match);
+        } else {
+            const std::string response = "NOT AUTHORIZED";
+
         }
     } else {
         std::cout << "Request not found: " << message << std::endl;
