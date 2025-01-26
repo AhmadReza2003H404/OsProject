@@ -6,7 +6,7 @@
 #include "HasFunction.h"
 
 #define SERVER_PORT 9999
-#define BUFFER_SIZE 1024
+#define BUFFER_SIZE 4096
 
 void renderMenu();
 
@@ -42,7 +42,20 @@ void priceInquiry(int sockfd, struct sockaddr_in sockaddr_in) {
 }
 
 void getExchangesList(int sockfd, struct sockaddr_in sockaddr_in) {
+    const std::string message = "GET_EXCHANGE_LIST";
+    const std::string messageToServer = message + " | TOKEN | " + simpleHash(message);
+    sendto(sockfd, messageToServer.c_str(), messageToServer.size(), 0, (const struct sockaddr *) &sockaddr_in, sizeof(sockaddr_in));
 
+    char buffer[BUFFER_SIZE];
+    socklen_t len = sizeof(sockaddr_in);
+    int n = recvfrom(sockfd, buffer, BUFFER_SIZE, 0, (struct sockaddr *)&sockaddr_in, &len);
+     if (n < 0) {
+        perror("Receive failed");
+    } else {
+        buffer[n] = '\0';
+        std::cout << "Bank response: " << buffer << "\n";
+    }
+    
 }
 
 void buyCryptocurrency(int sockfd, struct sockaddr_in sockaddr_in) {
@@ -93,8 +106,22 @@ void increaseWalletBalance(int sockfd, struct sockaddr_in sockaddr_in, int assig
     }
 }
 
-void viewTransactionHistory(int sockfd, struct sockaddr_in sockaddr_in) {
 
+void viewTransactionHistory(int sockfd, struct sockaddr_in sockaddr_in , int assigned_port) {
+    const std::string message = "GET_ACCOUNT_HISTORY | " + std::to_string(assigned_port);
+    const std::string messageToServer = message + " | TOKEN | " + simpleHash(message);
+    sendto(sockfd, messageToServer.c_str(), messageToServer.size(), 0, (const struct sockaddr *) &sockaddr_in, sizeof(sockaddr_in));
+
+     char buffer[BUFFER_SIZE];
+     socklen_t len = sizeof(sockaddr_in);
+     int n = recvfrom(sockfd, buffer, BUFFER_SIZE, 0, (struct sockaddr *)&sockaddr_in, &len);
+    if (n < 0) {
+        perror("Receive failed");
+    } else {
+            buffer[n] = '\0';
+            std::cout << "Bank response: " << buffer << "\n";
+      }
+    
 }
 
 void renderMenu() {
@@ -128,7 +155,7 @@ void handleClient(int sockfd, int bankSocketFd, struct sockaddr_in addr, struct 
         } else if (choice == "5") {
             increaseWalletBalance(bankSocketFd, bank_server_addr, assigned_port);
         } else if (choice == "6") {
-            viewTransactionHistory(bankSocketFd, bank_server_addr);
+            viewTransactionHistory(bankSocketFd, bank_server_addr , assigned_port);
         } else if (choice == "7") {
             isRunning = false;
         } else {
