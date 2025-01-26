@@ -59,7 +59,15 @@ std::string trim(const std::string &str) {
     return str.substr(start, end - start + 1);
 }
 
-void handleMessage(const std::string &message, int sockfd, struct sockaddr_in sockaddr_in);
+struct HandleMessageStruct {
+    std::string message;
+    int sockfd;
+    struct sockaddr_in sockaddr_in;
+};
+
+void *handleMessage(void * arg);
+
+// void handleMessage(const std::string &message, int sockfd, struct sockaddr_in sockaddr_in);
 
 [[noreturn]] void setUpBank() {
     std::cout << "Entering bank setup...\n";
@@ -102,7 +110,16 @@ void handleMessage(const std::string &message, int sockfd, struct sockaddr_in so
 
         std::string message(buffer);
 
-        handleMessage(message, sockfd, client_addr);
+        pthread_t updaterThread;
+        HandleMessageStruct* messageStruct = new HandleMessageStruct();
+        messageStruct->message = message;
+        messageStruct->sockfd = sockfd;
+        messageStruct->sockaddr_in = client_addr;
+        if (pthread_create(&updaterThread, nullptr, handleMessage, messageStruct) != 0) {
+            std::cerr << "Error: Failed to create thread" << std::endl;
+            std::string response = "Error: Failed to create thread for request";
+            sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &client_addr, len);
+        }
     }
 
     close(sockfd);
@@ -402,7 +419,11 @@ void sellCryptocurrency(int sockfd, struct sockaddr_in sockaddr_in, const smatch
     }
 }
 
-void handleMessage(const std::string &message, int sockfd, struct sockaddr_in sockaddr_in) {
+void *handleMessage(void *arg) {
+    HandleMessageStruct * handle_message_struct = static_cast<HandleMessageStruct *>(arg);
+    std::string message = handle_message_struct->message;
+    int sockfd = handle_message_struct->sockfd;
+    struct sockaddr_in sockaddr_in = handle_message_struct->sockaddr_in;
     std::smatch match; // Object to hold the match results
     std::cout << "Receive: " << message << std::endl;
     if (std::regex_match(message, match, clientRegisterRegex)) {
@@ -489,4 +510,96 @@ void handleMessage(const std::string &message, int sockfd, struct sockaddr_in so
         sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
                sizeof(sockaddr_in));
     }
+    delete handle_message_struct;
+    return nullptr;
 }
+
+//
+// void handleMessage(const std::string &message, int sockfd, struct sockaddr_in sockaddr_in) {
+//     std::smatch match; // Object to hold the match results
+//     std::cout << "Receive: " << message << std::endl;
+//     if (std::regex_match(message, match, clientRegisterRegex)) {
+//         if (isAuthorized(match, 4)) {
+//             registerClient(sockfd, sockaddr_in, match);
+//         } else {
+//             const std::string response = "NOT AUTHORIZED";
+//             sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
+//                    sizeof(sockaddr_in));
+//         }
+//     } else if (std::regex_match(message, match, exchangeRegisterRegex)) {
+//         if (isAuthorized(match, 4)) {
+//             registerExchange(sockfd, sockaddr_in, match);
+//         } else {
+//             const std::string response = "NOT AUTHORIZED";
+//             sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
+//                    sizeof(sockaddr_in));
+//         }
+//     } else if (std::regex_match(message, match, getAccountBalanceRegex)) {
+//         if (isAuthorized(match, 3)) {
+//             getAccountBalance(sockfd, sockaddr_in, match);
+//         } else {
+//             const std::string response = "NOT AUTHORIZED";
+//             sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
+//                    sizeof(sockaddr_in));
+//         }
+//     } else if (std::regex_match(message, match, increaseAccountBalanceRegex)) {
+//         if (isAuthorized(match, 4)) {
+//             addAccountBalance(sockfd, sockaddr_in, match);
+//         } else {
+//             const std::string response = "NOT AUTHORIZED";
+//             sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
+//                    sizeof(sockaddr_in));
+//         }
+//     } else if (std::regex_match(message, match, getExchangeListRegex)) {
+//         if (isAuthorized(match, 2)) {
+//             getExchangeList(sockfd, sockaddr_in);
+//         } else {
+//             const std::string response = "NOT AUTHORIZED";
+//             sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
+//                    sizeof(sockaddr_in));
+//         }
+//     } else if (std::regex_match(message, match, getAccountHistoryRegex)) {
+//         if (isAuthorized(match, 3)) {
+//             getAccountHistory(sockfd, sockaddr_in, match);
+//         } else {
+//             const std::string response = "NOT AUTHORIZED";
+//             sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
+//                    sizeof(sockaddr_in));
+//         }
+//     } else if (std::regex_match(message, match, addCryptocurrencyRegex)) {
+//         if (isAuthorized(match, 5)) {
+//             addCryptocurrency(sockfd, sockaddr_in, match);
+//         } else {
+//             const std::string response = "NOT AUTHORIZED";
+//             sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
+//                    sizeof(sockaddr_in));
+//         }
+//     } else if (std::regex_match(message, match, releaseCryptocurrencyRegex)) {
+//         if (isAuthorized(match, 3)) {
+//             releaseCryptocurrency(match);
+//         } else {
+//             const std::string response = "NOT AUTHORIZED";
+//             sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
+//                    sizeof(sockaddr_in));
+//         }
+//     } else if (std::regex_match(message, match, buyCryptocurrencyRegex)) {
+//         if(isAuthorized(match, 6)) {
+//             buyCryptocurrency(sockfd, sockaddr_in, match);
+//         } else {
+//             const std::string response = "NOT AUTHORIZED";
+//
+//         }
+//     } else if (std::regex_match(message, match, sellCryptocurrencyRegex)) {
+//         if(isAuthorized(match, 6)) {
+//             sellCryptocurrency(sockfd, sockaddr_in, match);
+//         } else {
+//             const std::string response = "NOT AUTHORIZED";
+//
+//         }
+//     } else {
+//         std::cout << "Request not found: " << message << std::endl;
+//         const std::string response = "Request not found";
+//         sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
+//                sizeof(sockaddr_in));
+//     }
+// }
