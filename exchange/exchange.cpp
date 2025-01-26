@@ -123,7 +123,7 @@ std::string submitBuyRequestInBank(const string & name, Cryptocurrency * cryptoc
     return response;
 }
 
-void buy_sellCryptocurrency(int sockfd, struct sockaddr_in sockaddr_in, const smatch & match, atomic<long> * exchangeBalance) {
+void buyCryptocurrency(int sockfd, struct sockaddr_in sockaddr_in, const smatch & match, atomic<long> * exchangeBalance) {
     std::string name = match[2];
     long count = std::stoi(match[3]);
     int port = std::stoi(match[4]);
@@ -170,7 +170,7 @@ void handleMessage(const std::string &message, int sockfd, struct sockaddr_in so
         }
     } else if(std::regex_match(message, match, buyCryptocurrencyRegex)) {
         if(isAuthorized(match, 5)) {
-            buy_sellCryptocurrency(sockfd, sockaddr_in, match, exchangeBalance);
+            buyCryptocurrency(sockfd, sockaddr_in, match, exchangeBalance);
         } else {
             const std::string response = "NOT AUTHORIZED";
             sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,

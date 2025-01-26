@@ -159,10 +159,13 @@ void getAccountBalance(int sockfd, struct sockaddr_in sockaddr_in, const std::sm
         }
     }
     if (c) {
-        const std::string response = "ACCOUNT BALANCE | " + std::to_string(c->balance);
+        std::string response = "ACCOUNT BALANCE | " + std::to_string(c->balance);
+        std::cout << "Get Account balance of : " << port << " is " << c->balance << std::endl;
+        for(ClientCryptocurrency * CC : c->cryptocurrencies) {
+            response += "\n Crypto: " + CC->name + " | Count: " + to_string(CC->balance);
+        }
         sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
                sizeof(sockaddr_in));
-        std::cout << "Get Account balance of : " << port << " is " << c->balance << std::endl;
     } else {
         std::cout << "Account not found " << port << std::endl;
         const std::string response = "ACCOUNT NOT FOUND";
@@ -284,7 +287,7 @@ void releaseCryptocurrency(const smatch &match) {
     }
 }
 
-void buy_sellCryptocurrency(int sockfd, struct sockaddr_in sockaddr_in, const smatch & match) {
+void buyCryptocurrency(int sockfd, struct sockaddr_in sockaddr_in, const smatch & match) {
     std::string cryptoName = match[2];
     int count = stoi(match[3]);
     int port = stoi(match[4]);
@@ -413,7 +416,7 @@ void handleMessage(const std::string &message, int sockfd, struct sockaddr_in so
         }
     } else if (std::regex_match(message, match, buyCryptocurrencyRegex)) {
         if(isAuthorized(match, 6)) {
-            buy_sellCryptocurrency(sockfd, sockaddr_in, match);
+            buyCryptocurrency(sockfd, sockaddr_in, match);
         } else {
             const std::string response = "NOT AUTHORIZED";
 
