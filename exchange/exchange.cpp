@@ -118,7 +118,7 @@ std::string submitBuyRequestInBank(const string &name, Cryptocurrency *cryptocur
     const std::string messageToServer = message + " | TOKEN | " + simpleHash(message);
     std::string response = sendMessageToBank(messageToServer);
     if (response == "SUCCESSES") {
-        int prevCount = cryptocurrency->count;
+        int prevCount = max(cryptocurrency->count , 1);
         mtx.lock();
         cryptocurrency->count -= count;
 
@@ -170,7 +170,7 @@ string submitSellRequestInBank(const string &name, Cryptocurrency *cryptocurrenc
     const std::string messageToServer = message + " | TOKEN | " + simpleHash(message);
     std::string response = sendMessageToBank(messageToServer);
     if (response == "SUCCESSES") {
-        int prevCount = count;
+        int prevCount = max(count , 1);
         mtx.lock();
         cryptocurrency->count += count;
         mtx.unlock();
@@ -232,7 +232,7 @@ void buyCryptocurrencyExchange(int sockfd, struct sockaddr_in sockaddr_in, const
         }
 
         //Every thing is OK
-        int prevCount = cur->count;
+        int prevCount = max(cur->count , 1);
         response = "SUCCESS | " + to_string(cur->price);
         cur->count -= currencyCount;
         exchangeBalance->store(exchangeBalance->load() + currencyCount * cur->price);
@@ -448,7 +448,7 @@ void *getCryptoFromOtherExchange(void *arg) {
                         if (regex_match(data, matches, buySuccessRegex)) {
                             cout << "response: " << data << "\n";
                             int price = stoi(matches[2]);
-                            int prevCount = curency->count;
+                            int prevCount = max(curency->count , 1);
                             curency->count += 5;
                             int priceAdd = (((curency->count / prevCount) * 100) * 3) / 5;
                             exchangeBalance->store(exchangeBalance->load() - (5 * price));
