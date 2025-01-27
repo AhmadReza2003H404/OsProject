@@ -233,14 +233,40 @@ void buyCryptocurrencyExchange(int sockfd, struct sockaddr_in sockaddr_in, const
       mtx.unlock();
       response = "SUCCESS";
       break;
-      
+
    }
-       
+
     std::cout << response << std::endl;
 
     sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
            sizeof(sockaddr_in));
 
+}
+
+void syncCryptocurrency(int sockfd, struct sockaddr_in sockaddr_in, const smatch & match) {
+    std::cout << "Sync " << match[2] << " with price: " << match[3] << std::endl;
+    std::string name = match[2];
+    long price = std::stoi(match[3]);
+    bool isFound = false;
+    for(Cryptocurrency * cryptocurrency : currencyList) {
+        if(cryptocurrency->name == name) {
+            mtx.lock();
+            cryptocurrency->price = price;
+            isFound = true;
+            mtx.unlock();
+        }
+    }
+    if(!isFound) {
+        Cryptocurrency * cryptocurrency = new Cryptocurrency;
+        cryptocurrency->name = name;
+        cryptocurrency->price = price;
+        cryptocurrency->isAvailable = true;
+        cryptocurrency->isOwner = false;
+        cryptocurrency->totalCounts = 0;
+        mtx.lock();
+        currencyList.push_back(cryptocurrency);
+        mtx.unlock();
+    }
 }
 
 void handleMessage(const std::string &message, int sockfd, struct sockaddr_in sockaddr_in, atomic<long> * exchangeBalance) {
@@ -278,7 +304,15 @@ void handleMessage(const std::string &message, int sockfd, struct sockaddr_in so
             sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
                    sizeof(sockaddr_in));
         }
-    } else {
+    } else if(std::regex_match(message, match, syncCryptocurrencyRegex)) {
+        if(isAuthorized(match, 4)) {
+            syncCryptocurrency(sockfd, sockaddr_in, match);
+        } else {
+            const std::string response = "NOT AUTHORIZED";
+            sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
+                   sizeof(sockaddr_in));
+        }
+    }  else {
         std::cout << "Request not found: " << message << std::endl;
         const std::string response = "Request not found";
         sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
@@ -329,8 +363,8 @@ void *getCryptoFromOtherExchange(void *arg){
                         close(bankSocketFd);
                     }
     atomic<long>* exchangeBalance = static_cast<atomic<long>*>(arg);
-  
-  
+
+
     while(true){
         sleep(30);{
 
@@ -362,12 +396,12 @@ void *getCryptoFromOtherExchange(void *arg){
                                 if(curStr.size() > 0){
                                     if(curStr != to_string(assigned_port)) exChangesId.push_back(curStr);
                                 }
-                                
+
                             }
 
             for(auto curency: currencyList){
                 if(curency->count > 0) continue;
-                
+
                 cout << "We dont have " + curency->name << "crypto so try to buy it from another exchanges..." << endl;
                  for(auto exId: exChangesId){
                     int exChangeSocketFd;
@@ -412,8 +446,8 @@ void *getCryptoFromOtherExchange(void *arg){
                                 }
                             }
                     mtx.unlock();
-                 }      
-                
+                 }
+
             }
         }
     }
@@ -422,7 +456,7 @@ void *getCryptoFromOtherExchange(void *arg){
 void *availabilityUpdater(void *arg) {
     int bankSocketFd;
     struct sockaddr_in bank_server_addr{};
-    
+
 
     // Create a UDP socket
     if ((bankSocketFd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
@@ -535,18 +569,6 @@ void handleExchange(int sockfd, int bankSocketFd, struct sockaddr_in addr, struc
 
         if (choice == "0") {
             addCrypto(bankSocketFd, bank_server_addr);
-        } else if (choice == "1") {
-            //function Call
-        } else if (choice == "2") {
-            //function Call
-        } else if (choice == "3") {
-            //function Call
-        } else if (choice == "4") {
-            //function Call
-        } else if (choice == "5") {
-            //function Call
-        } else if (choice == "6") {
-            //function Call
         } else if (choice == "7") {
             isRunning = false;
         } else {
@@ -634,7 +656,7 @@ void registerWithBank(const std::string &name, const std::string &server_ip) {
         exit(EXIT_FAILURE);
     }
       pthread_t getCryptoFromOtherExchangeThread;
-    
+
     if (pthread_create(&getCryptoFromOtherExchangeThread, nullptr, getCryptoFromOtherExchange , &exchangeBalance) != 0) {
         std::cerr << "Error: Failed to create thread" << std::endl;
     }
@@ -652,7 +674,7 @@ int main() {
         return 1;
     }
 
-   
+
     registerWithBank(name, SERVICE_IP);
 
     return 0;
