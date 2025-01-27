@@ -351,7 +351,7 @@ void *getCryptoFromOtherExchange(void *arg){
                                 string curStr = "";
                                 for(int i = 0; i < n; i++){
                                     if(buffer[i] == ','){
-                                        if(curStr != assigned_port) exChangesId.push_back(curStr);
+                                        if(curStr != to_string(assigned_port)) exChangesId.push_back(curStr);
                                         curStr = "";
                                         continue;
                                     }
@@ -360,7 +360,7 @@ void *getCryptoFromOtherExchange(void *arg){
                                     }
                                 }
                                 if(curStr.size() > 0){
-                                    if(curStr != assigned_port) exChangesId.push_back(curStr);
+                                    if(curStr != to_string(assigned_port)) exChangesId.push_back(curStr);
                                 }
                                 
                             }
@@ -637,7 +637,6 @@ void registerWithBank(const std::string &name, const std::string &server_ip) {
     
     if (pthread_create(&getCryptoFromOtherExchangeThread, nullptr, getCryptoFromOtherExchange , &exchangeBalance) != 0) {
         std::cerr << "Error: Failed to create thread" << std::endl;
-        return 1;
     }
     handleExchange(sockfd, bankSocketFd, addr, bank_server_addr, &exchangeBalance);
 }
