@@ -267,6 +267,34 @@ void getExchangeList(int sockfd, struct sockaddr_in sockaddr_in) {
     sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in, sizeof(sockaddr_in));
 }
 
+// void getExchangeListPort(int sockfd, struct sockaddr_in sockaddr_in){
+//     std::string response = "";
+//     for (auto ex: exchanges) {
+//         if(response.size() > 0) response = response + ',';
+//         std::string message = to_string(ex->port);
+//         response = response + message;
+//     }
+
+
+//     socklen_t len = sizeof(sockaddr_in);
+//     std::cout << "Send Exchange List" << endl;
+//     sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in, sizeof(sockaddr_in));
+// }
+
+void getExchangeListPort(int sockfd, struct sockaddr_in sockaddr_in) {
+    std::string response = "";
+    for (auto ex: exchanges) {
+        if(response.size() > 0) response = response + ',';
+        std::string message = to_string(ex->port);
+        response = response + message;
+    }
+
+
+    socklen_t len = sizeof(sockaddr_in);
+    std::cout << "Send Exchange List" << endl;
+    sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in, sizeof(sockaddr_in));
+}
+
 void getAccountHistory(int sockfd, struct sockaddr_in sockaddr_in, const std::smatch &match) {
     std::string port = match[2];
     Client *c = nullptr;
@@ -504,7 +532,17 @@ void *handleMessage(void *arg) {
             const std::string response = "NOT AUTHORIZED";
 
         }
-    } else {
+    } else if(std::regex_match(message , match , getExchangeListPortRegex)){
+        if (isAuthorized(match, 2)) {
+            getExchangeListPort(sockfd, sockaddr_in);
+        } else {
+            const std::string response = "NOT AUTHORIZED";
+            sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
+                   sizeof(sockaddr_in));
+        }
+    }
+    
+    else {
         std::cout << "Request not found: " << message << std::endl;
         const std::string response = "Request not found";
         sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,

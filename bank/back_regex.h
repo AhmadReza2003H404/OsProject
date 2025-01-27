@@ -13,5 +13,6 @@ const std::regex addCryptocurrencyRegex(R"(^(CREATE_CRYPTO_CURRENCY \| ([a-zA-Z0
 const std::regex releaseCryptocurrencyRegex(R"(^(RELEASE_CRYPTO_CURRENCY \| ([a-zA-Z0-9_]+)) \| TOKEN \| (.+)$)");
 const std::regex buyCryptocurrencyRegex(R"(^(BUY \| ([a-zA-Z0-9_]+) \| COUNT \| (\d+) \| PORT \| (\d{1,5}) \| PRICE \| (\d+)) \| TOKEN \| (.+)$)");
 const std::regex sellCryptocurrencyRegex(R"(^(SELL \| ([a-zA-Z0-9_]+) \| COUNT \| (\d+) \| PORT \| (\d{1,5}) \| PRICE \| (\d+)) \| TOKEN \| (.+)$)");
+const std::regex getExchangeListPortRegex(R"(^(GET_EXCHANGE_LIST_PORT) \| TOKEN \| (.+)$)");
 
 #endif //BANK_REGEX_H

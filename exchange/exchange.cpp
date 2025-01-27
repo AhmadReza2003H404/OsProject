@@ -34,7 +34,7 @@ struct Cryptocurrency {
     int realizeAfterSeconds;
     bool isOwner;
 };
-
+int assigned_port;
 
 vector<Cryptocurrency *> currencyList;
 
@@ -205,6 +205,44 @@ void sellCryptocurrency(int sockfd, struct sockaddr_in sockaddr_in, const smatch
            sizeof(sockaddr_in));
 }
 
+void buyCryptocurrencyExchange(int sockfd, struct sockaddr_in sockaddr_in, const smatch & match , atomic<long> * exchangeBalance){
+    string response;
+   string currencyName = match[2];
+   int currencyCount = stoi(match[3]);
+   long  antoherExchangeBalance = stoi(match[4]);
+   for(auto cur: currencyList){
+      if(cur->name != currencyName) continue;
+      if(cur->count < currencyCount) {
+        //Response
+        response = "NOT Have";
+        break;
+      }
+      if(cur->count * cur-> price > antoherExchangeBalance){
+        //Response
+        response = "pool nadari!!";
+        break;
+      }
+
+      //Every thing is OK
+      int prevCount = cur->count;
+      mtx.lock();
+      cur->count -= currencyCount;
+      exchangeBalance->store(exchangeBalance->load() + currencyCount * cur->price);
+      int priceAdd = (((cur->count / prevCount) * 100) * 3) / 5;
+      cur->price += (priceAdd * cur->price) / 100;
+      mtx.unlock();
+      response = "SUCCESS";
+      break;
+      
+   }
+       
+    std::cout << response << std::endl;
+
+    sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
+           sizeof(sockaddr_in));
+
+}
+
 void handleMessage(const std::string &message, int sockfd, struct sockaddr_in sockaddr_in, atomic<long> * exchangeBalance) {
     std::smatch match; // Object to hold the match results
     std::cout << "Receive: " << message << std::endl;
@@ -227,6 +265,14 @@ void handleMessage(const std::string &message, int sockfd, struct sockaddr_in so
     } else if(std::regex_match(message, match, sellCryptocurrencyRegex)) {
         if(isAuthorized(match, 5)) {
             sellCryptocurrency(sockfd, sockaddr_in, match, exchangeBalance);
+        } else {
+            const std::string response = "NOT AUTHORIZED";
+            sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
+                   sizeof(sockaddr_in));
+        }
+    } else if(std::regex_match(message , match , buyCryptocurrencyExchangeRegex)){
+          if(isAuthorized(match, 5)) {
+            buyCryptocurrencyExchange(sockfd, sockaddr_in, match , exchangeBalance);
         } else {
             const std::string response = "NOT AUTHORIZED";
             sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
@@ -260,10 +306,123 @@ void *provider(void *arg) {
         handleMessage(message, provider->socket, client_addr, provider->exchangeBalance);
     }
 }
+void *getCryptoFromOtherExchange(void *arg){
+     int bankSocketFd;
+    struct sockaddr_in bank_server_addr{};
 
+    // Create a UDP socket
+    if ((bankSocketFd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+        perror("Socket creation failed");
+        exit(EXIT_FAILURE);
+    }
+
+    // Configure server address
+    memset(&bank_server_addr, 0, sizeof(bank_server_addr));
+    bank_server_addr.sin_family = AF_INET;
+    bank_server_addr.sin_port = htons(SERVER_PORT);
+    inet_pton(AF_INET, SERVICE_IP.c_str(), &bank_server_addr.sin_addr);
+                    timeval timeout;
+                    timeout.tv_sec = 1;
+                    timeout.tv_usec = 0;
+                    if (setsockopt(bankSocketFd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0) {
+                        perror("Failed to set socket timeout");
+                        close(bankSocketFd);
+                    }
+    atomic<long>* exchangeBalance = static_cast<atomic<long>*>(arg);
+  
+  
+    while(true){
+        sleep(30);{
+
+            cout << "Starting to get crypto form another exchange" << endl;
+                   const string message = "GET_EXCHANGE_LIST_PORT";
+                        const std::string messageToServer = message + " | TOKEN | " + simpleHash(message);
+                        sendto(bankSocketFd, messageToServer.c_str(), messageToServer.size(), 0,
+                               (const struct sockaddr *) &bank_server_addr, sizeof(bank_server_addr));
+                            vector<string> exChangesId;
+                            char buffer[BUFFER_SIZE];
+                            socklen_t len = sizeof(bank_server_addr);
+                            int n = recvfrom(bankSocketFd, buffer, BUFFER_SIZE, 0, (struct sockaddr *) &bank_server_addr, &len);
+                            if (n < 0) {
+                                perror("Receive failed");
+                            } else {
+                                buffer[n] = '\0';
+                                std::cout << "Bank response(exchangeList): " << buffer << "\n";
+                                string curStr = "";
+                                for(int i = 0; i < n; i++){
+                                    if(buffer[i] == ','){
+                                        if(curStr != assigned_port) exChangesId.push_back(curStr);
+                                        curStr = "";
+                                        continue;
+                                    }
+                                    else{
+                                        curStr = curStr + buffer[i];
+                                    }
+                                }
+                                if(curStr.size() > 0){
+                                    if(curStr != assigned_port) exChangesId.push_back(curStr);
+                                }
+                                
+                            }
+
+            for(auto curency: currencyList){
+                if(curency->count > 0) continue;
+                
+                cout << "We dont have " + curency->name << "crypto so try to buy it from another exchanges..." << endl;
+                 for(auto exId: exChangesId){
+                    int exChangeSocketFd;
+                    struct sockaddr_in exchange_server_addr{};
+
+                    // Create a UDP socket
+                    if ((exChangeSocketFd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+                        perror("Socket creation failed");
+                        exit(EXIT_FAILURE);
+                    }
+
+                    // Configure server address
+                    memset(&exchange_server_addr, 0, sizeof(exchange_server_addr));
+                    exchange_server_addr.sin_family = AF_INET;
+                    exchange_server_addr.sin_port = htons(SERVER_PORT);
+                    inet_pton(AF_INET, SERVICE_IP.c_str(), &exchange_server_addr.sin_addr);
+                    timeval timeout;
+                    timeout.tv_sec = 1;
+                    timeout.tv_usec = 0;
+                    if (setsockopt(exChangeSocketFd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0) {
+                        perror("Failed to set socket timeout");
+                        close(exChangeSocketFd);
+                    }
+                    mtx.lock();
+                    const string message = "BUY_CRYPTO_EXCHANGE | " + curency->name + " | " + "5 | " + to_string(exchangeBalance->load());
+                        const std::string messageToExchange = message + " | TOKEN | " + simpleHash(message);
+                    sendto(exChangeSocketFd, messageToExchange.c_str(), messageToExchange.size(), 0,
+                               (const struct sockaddr *) &exchange_server_addr, sizeof(exchange_server_addr));
+                    socklen_t len2 = sizeof(exchange_server_addr);
+                    int n = recvfrom(exChangeSocketFd, buffer, BUFFER_SIZE, 0, (struct sockaddr *) &exchange_server_addr, &len2);
+                            if (n < 0) {
+                                perror("Receive failed");
+                            } else {
+                                buffer[n] = '\0';
+                                string data = string(buffer);
+                                if(data == "SUCCESS"){
+                                    int prevCount = curency->count;
+                                    curency->count += 5;
+                                    int priceAdd = (((curency->count / prevCount) * 100) * 3) / 5;
+                                    exchangeBalance->store(exchangeBalance->load() - (5 * curency->price));
+                                    curency->price -= (priceAdd * curency->price) / 100;
+                                }
+                            }
+                    mtx.unlock();
+                 }      
+                
+            }
+        }
+    }
+  return nullptr;
+}
 void *availabilityUpdater(void *arg) {
     int bankSocketFd;
     struct sockaddr_in bank_server_addr{};
+    
 
     // Create a UDP socket
     if ((bankSocketFd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
@@ -429,7 +588,7 @@ void registerWithBank(const std::string &name, const std::string &server_ip) {
         exit(EXIT_FAILURE);
     }
 
-    int assigned_port = ntohs(addr.sin_port);
+    assigned_port = ntohs(addr.sin_port);
     std::cout << "Listening on assigned port: " << assigned_port << std::endl;
 
     int bankSocketFd;
@@ -474,6 +633,12 @@ void registerWithBank(const std::string &name, const std::string &server_ip) {
         std::cerr << "Error: Failed to create thread" << std::endl;
         exit(EXIT_FAILURE);
     }
+      pthread_t getCryptoFromOtherExchangeThread;
+    
+    if (pthread_create(&getCryptoFromOtherExchangeThread, nullptr, getCryptoFromOtherExchange , &exchangeBalance) != 0) {
+        std::cerr << "Error: Failed to create thread" << std::endl;
+        return 1;
+    }
     handleExchange(sockfd, bankSocketFd, addr, bank_server_addr, &exchangeBalance);
 }
 
@@ -487,6 +652,8 @@ int main() {
         std::cerr << "Error: Failed to create thread" << std::endl;
         return 1;
     }
+
+   
     registerWithBank(name, SERVICE_IP);
 
     return 0;
