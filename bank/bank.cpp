@@ -583,7 +583,7 @@ void sendMessageToExchange(Exchange * exchange, const string & message) {
 
 void *syncThread(void *args) {
     while (true) {
-        sleep(120); // Sleep for 2 minute
+        sleep(30); // Sleep for 2 minute
         std::cout << "Sync thread started" << std::endl;
         for(Cryptocurrencies* cryptocurrencies : cryptocurrencieses ) {
             if(cryptocurrencies->isAvailable) {

@@ -34,12 +34,13 @@ struct Cryptocurrency {
     int realizeAfterSeconds;
     bool isOwner;
 };
+
 int assigned_port;
 
 vector<Cryptocurrency *> currencyList;
 
 struct ProviderThreadStruct {
-    atomic<long> * exchangeBalance;
+    atomic<long> *exchangeBalance;
     int socket;
     int port;
     struct sockaddr_in address;
@@ -97,7 +98,7 @@ std::string sendMessageToBank(std::string message) {
         return "Failed to set socket timeout";
     }
     sendto(sockfd, message.c_str(), message.size(), 0, (const struct sockaddr *) &bank_server_addr,
-       sizeof(bank_server_addr));
+           sizeof(bank_server_addr));
     char buffer[BUFFER_SIZE];
     socklen_t len = sizeof(bank_server_addr);
     int n = recvfrom(sockfd, buffer, BUFFER_SIZE, 0, (struct sockaddr *) &bank_server_addr, &len);
@@ -109,12 +110,14 @@ std::string sendMessageToBank(std::string message) {
     return string(buffer);
 }
 
-std::string submitBuyRequestInBank(const string & name, Cryptocurrency * cryptocurrency, int port, long count, atomic<long> * exchangeBalance) {
+std::string submitBuyRequestInBank(const string &name, Cryptocurrency *cryptocurrency, int port, long count,
+                                   atomic<long> *exchangeBalance) {
     int price = cryptocurrency->price;
-    const std::string message = "BUY | " + name + " | COUNT | " + to_string(count)  + " | PORT | " + to_string(port) + " | PRICE | " + to_string(price);
+    const std::string message = "BUY | " + name + " | COUNT | " + to_string(count) + " | PORT | " + to_string(port) +
+                                " | PRICE | " + to_string(price);
     const std::string messageToServer = message + " | TOKEN | " + simpleHash(message);
-    std:: string response = sendMessageToBank(messageToServer);
-    if(response == "SUCCESSES") {
+    std::string response = sendMessageToBank(messageToServer);
+    if (response == "SUCCESSES") {
         int prevCount = cryptocurrency->count;
         mtx.lock();
         cryptocurrency->count -= count;
@@ -122,34 +125,34 @@ std::string submitBuyRequestInBank(const string & name, Cryptocurrency * cryptoc
         mtx.unlock();
         int priceAdd = (((count / prevCount) * 100) * 3) / 5;
         cryptocurrency->price += (priceAdd * cryptocurrency->price) / 100;
-        exchangeBalance->store( exchangeBalance->load() + (count * price));
+        exchangeBalance->store(exchangeBalance->load() + (count * price));
         std::cout << "New Price of: " << name << " is: " << cryptocurrency->price << std::endl;
     }
     std::cout << "New Exchange balance : " << exchangeBalance->load() << endl;
     return response;
 }
 
-void buyCryptocurrency(int sockfd, struct sockaddr_in sockaddr_in, const smatch & match, atomic<long> * exchangeBalance) {
+void buyCryptocurrency(int sockfd, struct sockaddr_in sockaddr_in, const smatch &match, atomic<long> *exchangeBalance) {
     std::string name = match[2];
     long count = std::stoi(match[3]);
     int port = std::stoi(match[4]);
-    Cryptocurrency  * cryptocurrency = nullptr;
+    Cryptocurrency *cryptocurrency = nullptr;
     for (auto *currency: currencyList) {
-        if(currency->name == name) {
+        if (currency->name == name) {
             cryptocurrency = currency;
             break;
         }
     }
     std::string response;
     if (cryptocurrency) {
-        if(cryptocurrency->count >= count) {
-            if(cryptocurrency->isAvailable || cryptocurrency->isOwner) {
-                response = submitBuyRequestInBank(name, cryptocurrency , port, count, exchangeBalance);
+        if (cryptocurrency->count >= count) {
+            if (cryptocurrency->isAvailable || cryptocurrency->isOwner) {
+                response = submitBuyRequestInBank(name, cryptocurrency, port, count, exchangeBalance);
             } else {
                 response = "NOT AVAILABLE | This Cryptocurrency: " + name + " is not available";
             }
         } else {
-            response = "NOT ENOUGH | This exchange does not have this count of " +  name;
+            response = "NOT ENOUGH | This exchange does not have this count of " + name;
         }
     } else {
         response = "NOT FOUND | Cryptocurrency " + name + " is not found in this exchange";
@@ -159,41 +162,43 @@ void buyCryptocurrency(int sockfd, struct sockaddr_in sockaddr_in, const smatch 
            sizeof(sockaddr_in));
 }
 
-string submitSellRequestInBank(const string & name, Cryptocurrency * cryptocurrency, int port, long count, std::atomic<long> * exchangeBalance) {
+string submitSellRequestInBank(const string &name, Cryptocurrency *cryptocurrency, int port, long count,
+                               std::atomic<long> *exchangeBalance) {
     int price = cryptocurrency->price;
-    const std::string message = "SELL | " + name + " | COUNT | " + to_string(count)  + " | PORT | " + to_string(port) + " | PRICE | " + to_string(price);
+    const std::string message = "SELL | " + name + " | COUNT | " + to_string(count) + " | PORT | " + to_string(port) +
+                                " | PRICE | " + to_string(price);
     const std::string messageToServer = message + " | TOKEN | " + simpleHash(message);
-    std:: string response = sendMessageToBank(messageToServer);
-    if(response == "SUCCESSES") {
+    std::string response = sendMessageToBank(messageToServer);
+    if (response == "SUCCESSES") {
         int prevCount = count;
         mtx.lock();
         cryptocurrency->count += count;
         mtx.unlock();
         int priceSub = (((count / prevCount) * 100) * 2) / 3;
         cryptocurrency->price -= (priceSub * cryptocurrency->price) / 100;
-        exchangeBalance->store( exchangeBalance->load() - (count * price));
-
+        exchangeBalance->store(exchangeBalance->load() - (count * price));
     }
     std::cout << "New Exchange balance : " << exchangeBalance->load() << endl;
 
     return response;
 }
 
-void sellCryptocurrency(int sockfd, struct sockaddr_in sockaddr_in, const smatch & match, atomic<long> * exchangeBalance) {
+void sellCryptocurrency(int sockfd, struct sockaddr_in sockaddr_in, const smatch &match,
+                        atomic<long> *exchangeBalance) {
     std::string name = match[2];
     long count = std::stoi(match[3]);
     int port = std::stoi(match[4]);
-    Cryptocurrency  * cryptocurrency = nullptr;
+    Cryptocurrency *cryptocurrency = nullptr;
     for (auto *currency: currencyList) {
-        if(currency->name == name) {
+        if (currency->name == name) {
             cryptocurrency = currency;
             break;
         }
     }
     std::string response;
     if (cryptocurrency) {
-        if(cryptocurrency->price * count <= exchangeBalance->load()) {
-            response = submitSellRequestInBank(name, cryptocurrency , port, count, exchangeBalance);
+        if (cryptocurrency->price * count <= exchangeBalance->load()) {
+            response = submitSellRequestInBank(name, cryptocurrency, port, count, exchangeBalance);
         } else {
             response = "NOT ENOUGH | This exchange does not have enough money to buy this exchange";
         }
@@ -205,59 +210,59 @@ void sellCryptocurrency(int sockfd, struct sockaddr_in sockaddr_in, const smatch
            sizeof(sockaddr_in));
 }
 
-void buyCryptocurrencyExchange(int sockfd, struct sockaddr_in sockaddr_in, const smatch & match , atomic<long> * exchangeBalance){
+void buyCryptocurrencyExchange(int sockfd, struct sockaddr_in sockaddr_in, const smatch &match,
+                               atomic<long> *exchangeBalance) {
     string response;
-   string currencyName = match[2];
-   int currencyCount = stoi(match[3]);
-   long  antoherExchangeBalance = stoi(match[4]);
-   for(auto cur: currencyList){
-      if(cur->name != currencyName) continue;
-      if(cur->count < currencyCount) {
-        //Response
-        response = "NOT Have";
-        break;
-      }
-      if(cur->count * cur-> price > antoherExchangeBalance){
-        //Response
-        response = "pool nadari!!";
-        break;
-      }
+    string currencyName = match[2];
+    int currencyCount = stoi(match[3]);
+    long antoherExchangeBalance = stoi(match[4]);
+    for (auto cur: currencyList) {
+        if (cur->name != currencyName) continue;
+        if (cur->count < currencyCount) {
+            //Response
+            response = "NOT Have";
+            break;
+        }
+        mtx.lock();
+        if (cur->count * cur->price > antoherExchangeBalance) {
+            //Response
+            response = "pool nadari!!";
+            mtx.unlock();
+            break;
+        }
 
-      //Every thing is OK
-      int prevCount = cur->count;
-      mtx.lock();
-      cur->count -= currencyCount;
-      exchangeBalance->store(exchangeBalance->load() + currencyCount * cur->price);
-      int priceAdd = (((cur->count / prevCount) * 100) * 3) / 5;
-      cur->price += (priceAdd * cur->price) / 100;
-      mtx.unlock();
-      response = "SUCCESS";
-      break;
-
-   }
+        //Every thing is OK
+        int prevCount = cur->count;
+        response = "SUCCESS | " + to_string(cur->price);
+        cur->count -= currencyCount;
+        exchangeBalance->store(exchangeBalance->load() + currencyCount * cur->price);
+        int priceAdd = (((cur->count / prevCount) * 100) * 3) / 5;
+        cur->price += (priceAdd * cur->price) / 100;
+        mtx.unlock();
+        break;
+    }
 
     std::cout << response << std::endl;
 
     sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
            sizeof(sockaddr_in));
-
 }
 
-void syncCryptocurrency(int sockfd, struct sockaddr_in sockaddr_in, const smatch & match) {
+void syncCryptocurrency(int sockfd, struct sockaddr_in sockaddr_in, const smatch &match) {
     std::cout << "Sync " << match[2] << " with price: " << match[3] << std::endl;
     std::string name = match[2];
     long price = std::stoi(match[3]);
     bool isFound = false;
-    for(Cryptocurrency * cryptocurrency : currencyList) {
-        if(cryptocurrency->name == name) {
+    for (Cryptocurrency *cryptocurrency: currencyList) {
+        if (cryptocurrency->name == name) {
             mtx.lock();
             cryptocurrency->price = price;
             isFound = true;
             mtx.unlock();
         }
     }
-    if(!isFound) {
-        Cryptocurrency * cryptocurrency = new Cryptocurrency;
+    if (!isFound) {
+        Cryptocurrency *cryptocurrency = new Cryptocurrency;
         cryptocurrency->name = name;
         cryptocurrency->price = price;
         cryptocurrency->isAvailable = true;
@@ -269,7 +274,8 @@ void syncCryptocurrency(int sockfd, struct sockaddr_in sockaddr_in, const smatch
     }
 }
 
-void handleMessage(const std::string &message, int sockfd, struct sockaddr_in sockaddr_in, atomic<long> * exchangeBalance) {
+void handleMessage(const std::string &message, int sockfd, struct sockaddr_in sockaddr_in,
+                   atomic<long> *exchangeBalance) {
     std::smatch match; // Object to hold the match results
     std::cout << "Receive: " << message << std::endl;
     if (std::regex_match(message, match, inquiryCryptocurrencyRegex)) {
@@ -280,39 +286,39 @@ void handleMessage(const std::string &message, int sockfd, struct sockaddr_in so
             sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
                    sizeof(sockaddr_in));
         }
-    } else if(std::regex_match(message, match, buyCryptocurrencyRegex)) {
-        if(isAuthorized(match, 5)) {
+    } else if (std::regex_match(message, match, buyCryptocurrencyRegex)) {
+        if (isAuthorized(match, 5)) {
             buyCryptocurrency(sockfd, sockaddr_in, match, exchangeBalance);
         } else {
             const std::string response = "NOT AUTHORIZED";
             sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
                    sizeof(sockaddr_in));
         }
-    } else if(std::regex_match(message, match, sellCryptocurrencyRegex)) {
-        if(isAuthorized(match, 5)) {
+    } else if (std::regex_match(message, match, sellCryptocurrencyRegex)) {
+        if (isAuthorized(match, 5)) {
             sellCryptocurrency(sockfd, sockaddr_in, match, exchangeBalance);
         } else {
             const std::string response = "NOT AUTHORIZED";
             sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
                    sizeof(sockaddr_in));
         }
-    } else if(std::regex_match(message , match , buyCryptocurrencyExchangeRegex)){
-          if(isAuthorized(match, 5)) {
-            buyCryptocurrencyExchange(sockfd, sockaddr_in, match , exchangeBalance);
+    } else if (std::regex_match(message, match, buyCryptocurrencyExchangeRegex)) {
+        if (isAuthorized(match, 5)) {
+            buyCryptocurrencyExchange(sockfd, sockaddr_in, match, exchangeBalance);
         } else {
             const std::string response = "NOT AUTHORIZED";
             sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
                    sizeof(sockaddr_in));
         }
-    } else if(std::regex_match(message, match, syncCryptocurrencyRegex)) {
-        if(isAuthorized(match, 4)) {
+    } else if (std::regex_match(message, match, syncCryptocurrencyRegex)) {
+        if (isAuthorized(match, 4)) {
             syncCryptocurrency(sockfd, sockaddr_in, match);
         } else {
             const std::string response = "NOT AUTHORIZED";
             sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
                    sizeof(sockaddr_in));
         }
-    }  else {
+    } else {
         std::cout << "Request not found: " << message << std::endl;
         const std::string response = "Request not found";
         sendto(sockfd, response.c_str(), response.size(), 0, (const struct sockaddr *) &sockaddr_in,
@@ -340,8 +346,9 @@ void *provider(void *arg) {
         handleMessage(message, provider->socket, client_addr, provider->exchangeBalance);
     }
 }
-void *getCryptoFromOtherExchange(void *arg){
-     int bankSocketFd;
+
+void *getCryptoFromOtherExchange(void *arg) {
+    int bankSocketFd;
     struct sockaddr_in bank_server_addr{};
 
     // Create a UDP socket
@@ -355,55 +362,53 @@ void *getCryptoFromOtherExchange(void *arg){
     bank_server_addr.sin_family = AF_INET;
     bank_server_addr.sin_port = htons(SERVER_PORT);
     inet_pton(AF_INET, SERVICE_IP.c_str(), &bank_server_addr.sin_addr);
-                    timeval timeout;
-                    timeout.tv_sec = 1;
-                    timeout.tv_usec = 0;
-                    if (setsockopt(bankSocketFd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0) {
-                        perror("Failed to set socket timeout");
-                        close(bankSocketFd);
-                    }
-    atomic<long>* exchangeBalance = static_cast<atomic<long>*>(arg);
+    timeval timeout;
+    timeout.tv_sec = 1;
+    timeout.tv_usec = 0;
+    if (setsockopt(bankSocketFd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0) {
+        perror("Failed to set socket timeout");
+        close(bankSocketFd);
+    }
+    atomic<long> *exchangeBalance = static_cast<atomic<long> *>(arg);
 
 
-    while(true){
-        sleep(30);{
-
+    while (true) {
+        sleep(30); {
             cout << "Starting to get crypto form another exchange" << endl;
-                   const string message = "GET_EXCHANGE_LIST_PORT";
-                        const std::string messageToServer = message + " | TOKEN | " + simpleHash(message);
-                        sendto(bankSocketFd, messageToServer.c_str(), messageToServer.size(), 0,
-                               (const struct sockaddr *) &bank_server_addr, sizeof(bank_server_addr));
-                            vector<string> exChangesId;
-                            char buffer[BUFFER_SIZE];
-                            socklen_t len = sizeof(bank_server_addr);
-                            int n = recvfrom(bankSocketFd, buffer, BUFFER_SIZE, 0, (struct sockaddr *) &bank_server_addr, &len);
-                            if (n < 0) {
-                                perror("Receive failed");
-                            } else {
-                                buffer[n] = '\0';
-                                std::cout << "Bank response(exchangeList): " << buffer << "\n";
-                                string curStr = "";
-                                for(int i = 0; i < n; i++){
-                                    if(buffer[i] == ','){
-                                        if(curStr != to_string(assigned_port)) exChangesId.push_back(curStr);
-                                        curStr = "";
-                                        continue;
-                                    }
-                                    else{
-                                        curStr = curStr + buffer[i];
-                                    }
-                                }
-                                if(curStr.size() > 0){
-                                    if(curStr != to_string(assigned_port)) exChangesId.push_back(curStr);
-                                }
+            const string message = "GET_EXCHANGE_LIST_PORT";
+            const std::string messageToServer = message + " | TOKEN | " + simpleHash(message);
+            sendto(bankSocketFd, messageToServer.c_str(), messageToServer.size(), 0,
+                   (const struct sockaddr *) &bank_server_addr, sizeof(bank_server_addr));
+            vector<string> exChangesId;
+            char buffer[BUFFER_SIZE];
+            socklen_t len = sizeof(bank_server_addr);
+            int n = recvfrom(bankSocketFd, buffer, BUFFER_SIZE, 0, (struct sockaddr *) &bank_server_addr, &len);
+            if (n < 0) {
+                perror("Receive failed");
+            } else {
+                buffer[n] = '\0';
+                std::cout << "Bank response(exchangeList): " << buffer << "\n";
+                string curStr = "";
+                for (int i = 0; i < n; i++) {
+                    if (buffer[i] == ',') {
+                        if (curStr != to_string(assigned_port)) exChangesId.push_back(curStr);
+                        curStr = "";
+                        continue;
+                    } else {
+                        curStr = curStr + buffer[i];
+                    }
+                }
+                if (curStr.size() > 0) {
+                    if (curStr != to_string(assigned_port)) exChangesId.push_back(curStr);
+                }
+            }
 
-                            }
+            for (auto curency: currencyList) {
+                if (curency->count > 0) continue;
 
-            for(auto curency: currencyList){
-                if(curency->count > 0) continue;
-
-                cout << "We dont have " + curency->name << "crypto so try to buy it from another exchanges..." << endl;
-                 for(auto exId: exChangesId){
+                cout << "We dont have " + curency->name << " crypto so try to buy it from another exchanges..." << endl;
+                for (auto exId: exChangesId) {
+                    cout << exId << endl;
                     int exChangeSocketFd;
                     struct sockaddr_in exchange_server_addr{};
 
@@ -416,7 +421,7 @@ void *getCryptoFromOtherExchange(void *arg){
                     // Configure server address
                     memset(&exchange_server_addr, 0, sizeof(exchange_server_addr));
                     exchange_server_addr.sin_family = AF_INET;
-                    exchange_server_addr.sin_port = htons(SERVER_PORT);
+                    exchange_server_addr.sin_port = htons(stoi(exId));
                     inet_pton(AF_INET, SERVICE_IP.c_str(), &exchange_server_addr.sin_addr);
                     timeval timeout;
                     timeout.tv_sec = 1;
@@ -426,33 +431,42 @@ void *getCryptoFromOtherExchange(void *arg){
                         close(exChangeSocketFd);
                     }
                     mtx.lock();
-                    const string message = "BUY_CRYPTO_EXCHANGE | " + curency->name + " | " + "5 | " + to_string(exchangeBalance->load());
-                        const std::string messageToExchange = message + " | TOKEN | " + simpleHash(message);
+                    const string message = "BUY_CRYPTO_EXCHANGE | " + curency->name + " | " + "5 | " + to_string(
+                                               exchangeBalance->load());
+                    const std::string messageToExchange = message + " | TOKEN | " + simpleHash(message);
                     sendto(exChangeSocketFd, messageToExchange.c_str(), messageToExchange.size(), 0,
-                               (const struct sockaddr *) &exchange_server_addr, sizeof(exchange_server_addr));
+                           (const struct sockaddr *) &exchange_server_addr, sizeof(exchange_server_addr));
                     socklen_t len2 = sizeof(exchange_server_addr);
-                    int n = recvfrom(exChangeSocketFd, buffer, BUFFER_SIZE, 0, (struct sockaddr *) &exchange_server_addr, &len2);
-                            if (n < 0) {
-                                perror("Receive failed");
-                            } else {
-                                buffer[n] = '\0';
-                                string data = string(buffer);
-                                if(data == "SUCCESS"){
-                                    int prevCount = curency->count;
-                                    curency->count += 5;
-                                    int priceAdd = (((curency->count / prevCount) * 100) * 3) / 5;
-                                    exchangeBalance->store(exchangeBalance->load() - (5 * curency->price));
-                                    curency->price -= (priceAdd * curency->price) / 100;
-                                }
-                            }
+                    char buffer2[BUFFER_SIZE];
+                    int n = recvfrom(exChangeSocketFd, buffer2, BUFFER_SIZE, 0,
+                                     (struct sockaddr *) &exchange_server_addr, &len2);
+                    if (n < 0) {
+                        perror("Receive failed");
+                    } else {
+                        buffer2[n] = '\0';
+                        string data = string(buffer2);
+                        std::smatch matches;
+                        if (regex_match(data, matches, buySuccessRegex)) {
+                            int price = stoi(matches[2]);
+                            int prevCount = curency->count;
+                            curency->count += 5;
+                            int priceAdd = (((curency->count / prevCount) * 100) * 3) / 5;
+                            exchangeBalance->store(exchangeBalance->load() - (5 * price));
+                            curency->price -= (priceAdd * curency->price) / 100;
+                            std::cout << "Buy " << curency->name << " exchange " << exchangeBalance->load() << "%\n";
+                            mtx.unlock();
+                            break;
+                        }
+                        mtx.unlock();
+                    }
                     mtx.unlock();
-                 }
-
+                }
             }
         }
     }
-  return nullptr;
+    return nullptr;
 }
+
 void *availabilityUpdater(void *arg) {
     int bankSocketFd;
     struct sockaddr_in bank_server_addr{};
@@ -560,7 +574,8 @@ void renderMenu() {
     std::cout << "Enter your choice : ";
 }
 
-void handleExchange(int sockfd, int bankSocketFd, struct sockaddr_in addr, struct sockaddr_in bank_server_addr, atomic<long> * exchangeBalance) {
+void handleExchange(int sockfd, int bankSocketFd, struct sockaddr_in addr, struct sockaddr_in bank_server_addr,
+                    atomic<long> *exchangeBalance) {
     bool isRunning = true;
     std::string choice;
     while (isRunning) {
@@ -655,9 +670,9 @@ void registerWithBank(const std::string &name, const std::string &server_ip) {
         std::cerr << "Error: Failed to create thread" << std::endl;
         exit(EXIT_FAILURE);
     }
-      pthread_t getCryptoFromOtherExchangeThread;
+    pthread_t getCryptoFromOtherExchangeThread;
 
-    if (pthread_create(&getCryptoFromOtherExchangeThread, nullptr, getCryptoFromOtherExchange , &exchangeBalance) != 0) {
+    if (pthread_create(&getCryptoFromOtherExchangeThread, nullptr, getCryptoFromOtherExchange, &exchangeBalance) != 0) {
         std::cerr << "Error: Failed to create thread" << std::endl;
     }
     handleExchange(sockfd, bankSocketFd, addr, bank_server_addr, &exchangeBalance);
