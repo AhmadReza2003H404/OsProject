@@ -408,7 +408,6 @@ void *getCryptoFromOtherExchange(void *arg) {
 
                 cout << "We dont have " + curency->name << " crypto so try to buy it from another exchanges..." << endl;
                 for (auto exId: exChangesId) {
-                    cout << exId << endl;
                     int exChangeSocketFd;
                     struct sockaddr_in exchange_server_addr{};
 
@@ -430,7 +429,6 @@ void *getCryptoFromOtherExchange(void *arg) {
                         perror("Failed to set socket timeout");
                         close(exChangeSocketFd);
                     }
-                    mtx.lock();
                     const string message = "BUY_CRYPTO_EXCHANGE | " + curency->name + " | " + "5 | " + to_string(
                                                exchangeBalance->load());
                     const std::string messageToExchange = message + " | TOKEN | " + simpleHash(message);
@@ -442,11 +440,13 @@ void *getCryptoFromOtherExchange(void *arg) {
                                      (struct sockaddr *) &exchange_server_addr, &len2);
                     if (n < 0) {
                         perror("Receive failed");
+                        close(exChangeSocketFd);
                     } else {
                         buffer2[n] = '\0';
                         string data = string(buffer2);
                         std::smatch matches;
                         if (regex_match(data, matches, buySuccessRegex)) {
+                            cout << "response: " << data << "\n";
                             int price = stoi(matches[2]);
                             int prevCount = curency->count;
                             curency->count += 5;
@@ -454,12 +454,11 @@ void *getCryptoFromOtherExchange(void *arg) {
                             exchangeBalance->store(exchangeBalance->load() - (5 * price));
                             curency->price -= (priceAdd * curency->price) / 100;
                             std::cout << "Buy " << curency->name << " exchange " << exchangeBalance->load() << "%\n";
-                            mtx.unlock();
+                            close(exChangeSocketFd);
                             break;
                         }
-                        mtx.unlock();
+                        close(exChangeSocketFd);
                     }
-                    mtx.unlock();
                 }
             }
         }
