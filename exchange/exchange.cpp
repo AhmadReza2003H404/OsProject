@@ -170,7 +170,7 @@ string submitSellRequestInBank(const string &name, Cryptocurrency *cryptocurrenc
     const std::string messageToServer = message + " | TOKEN | " + simpleHash(message);
     std::string response = sendMessageToBank(messageToServer);
     if (response == "SUCCESSES") {
-        int prevCount = max(count , 1);
+        int prevCount = max((int)count , 1);
         mtx.lock();
         cryptocurrency->count += count;
         mtx.unlock();
